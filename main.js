@@ -1,26 +1,39 @@
 'use strict';
 
-function isNetlifyServer(responseHeaders) {
-  const header = responseHeaders.find(header => header.name.toLowerCase() === 'server');
-  return header && header.value === 'Netlify';
+const HEADER_KEYS = [ 'server', 'host' ];
+const NON_HOSTS = [ 'cloudflare' ];
+const HOST_MAP = {
+  gws: 'Google',
 }
 
-function getTabsUpdatedHandler(targetTabId) {
-  return function callback(updatedTabId) {
-    if (targetTabId === updatedTabId) {
-      chrome.browserAction.setIcon({
-        path: "icon-success-32.png",
-        tabId: updatedTabId,
-      });
+function getHost(responseHeaders) {
+  for (let key of HEADER_KEYS) {
+    const header = responseHeaders.find(h => h.name.toLowerCase() === key);
+    if (header && header.value) {
+      return HOST_MAP[header.value] || header.value;
     }
-    chrome.tabs.onUpdated.removeListener(callback);
+  }
+}
+
+function getTabsUpdatedHandler(targetTabId, host) {
+  return function callback(updatedTabId) {
+    if (targetTabId !== updatedTabId) return;
+    const title = host && !NON_HOSTS.includes(host)
+      ? `Hosted with ${host}`
+      : `Could not determine host (${host})`;
+    chrome.browserAction.setTitle({ title, tabId: updatedTabId });
+    chrome.browserAction.setIcon({
+      path: `icon-${host === 'Netlify' ? 'success-' : ''}32.png`,
+      tabId: updatedTabId,
+    });
   };
 }
 
 function getHeadersReceivedHandler() {
   return function callback({ responseHeaders, tabId }) {
-    if (isNetlifyServer(responseHeaders)) {
-      chrome.tabs.onUpdated.addListener(getTabsUpdatedHandler(tabId));
+    const host = getHost(responseHeaders);
+    if (host) {
+      chrome.tabs.onUpdated.addListener(getTabsUpdatedHandler(tabId, host));
     }
   };
 }
