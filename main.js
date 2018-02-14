@@ -1,27 +1,32 @@
 'use strict';
 
-function getHeaderFromHeaders(headers) {
-  for (var i = 0; i < headers.length; ++i) {
-    var header = headers[i];
-    if (header.name.toLowerCase() === "server") {
-      return header;
-    }
-  }
+function isNetlifyServer(responseHeaders) {
+  const header = responseHeaders.find(header => header.name.toLowerCase() === 'server');
+  return header && header.value === 'Netlify';
 }
 
-function isNetlifyServer(details) {
-  var header = getHeaderFromHeaders(details.responseHeaders);
-  if (header) {
-    return header.value === "Netlify";
-  }
+function getTabsUpdatedHandler(targetTabId) {
+  return function callback(updatedTabId) {
+    if (targetTabId === updatedTabId) {
+      chrome.browserAction.setIcon({
+        path: "icon-success-32.png",
+        tabId: updatedTabId,
+      });
+    }
+    chrome.tabs.onUpdated.removeListener(callback);
+  };
+}
+
+function getHeadersReceivedHandler() {
+  return function callback({ responseHeaders, tabId }) {
+    if (isNetlifyServer(responseHeaders)) {
+      chrome.tabs.onUpdated.addListener(getTabsUpdatedHandler(tabId));
+    }
+  };
 }
 
 chrome.webRequest.onHeadersReceived.addListener(
-  function callback(details) {
-    if (isNetlifyServer(details)) {
-      chrome.browserAction.setIcon({path: "icon-success-32.png", tabId: details.tabId});
-    }
-  },
+  getHeadersReceivedHandler(),
   {urls: ['<all_urls>'], types: ['main_frame']},
   ['responseHeaders']
 );
