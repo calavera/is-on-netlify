@@ -29,11 +29,20 @@ function getTabsUpdatedHandler(targetTabId, host) {
   };
 }
 
+function getTabsRemovedHandler(handler) {
+  return function callback() {
+    chrome.tabs.onUpdated.removeListener(handler);
+    chrome.tabs.onRemoved.removeListener(getTabsRemovedHandler);
+  }
+}
+
 function getHeadersReceivedHandler() {
   return function callback({ responseHeaders, tabId }) {
     const host = getHost(responseHeaders);
     if (host) {
-      chrome.tabs.onUpdated.addListener(getTabsUpdatedHandler(tabId, host));
+      const handler = getTabsUpdatedHandler(tabId, host);
+      chrome.tabs.onUpdated.addListener(handler);
+      chrome.tabs.onRemoved.addListener(getTabsRemovedHandler(handler));
     }
   };
 }
